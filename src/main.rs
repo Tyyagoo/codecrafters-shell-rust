@@ -13,7 +13,7 @@ static BUILTINS: &[(&str, Executor)] = &[
     }),
     ("pwd", |_name, _args, _path| {
         let path = env::current_dir().unwrap();
-        println!("{}", path.into_os_string().into_string().unwrap());
+        println!("{}", path.display());
     }),
     ("type", |_name, args, path| {
         let key = match args.first() {
