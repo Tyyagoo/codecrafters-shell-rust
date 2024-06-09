@@ -48,7 +48,7 @@ static BUILTINS: &[(&str, Executor)] = &[
                 Some(exe) => println!("{} is {}", key, exe),
                 None => println!("{} not found", key),
             },
-        }
+        };
     }),
 ];
 
@@ -72,25 +72,25 @@ fn find_builtin(key: &str) -> Result<usize, usize> {
 
 fn find_executable(path: &str, name: &str) -> Option<String> {
     for dir in path.split(':') {
-        if let Ok(entries) = fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                if let Ok(file_type) = entry.file_type() {
-                    if file_type.is_dir() {
-                        match find_executable(entry.path().to_str().unwrap(), name) {
-                            Some(exe) => {
-                                return Some(exe);
-                            }
-                            None => {
-                                continue;
-                            }
-                        }
-                    }
+        let entries = match fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
 
-                    if file_type.is_file() && entry.file_name() == name {
-                        let exe = entry.path().into_os_string().into_string().unwrap();
-                        return Some(exe);
-                    }
+        for entry in entries.flatten() {
+            let file_type = match entry.file_type() {
+                Ok(ft) => ft,
+                Err(_) => continue,
+            };
+
+            if file_type.is_dir() {
+                if let Some(exe) = find_executable(entry.path().to_str().unwrap(), name) {
+                    return Some(exe);
                 }
+            }
+
+            if file_type.is_file() && entry.file_name() == name {
+                return entry.path().to_str().map(|s| s.to_string());
             }
         }
     }
