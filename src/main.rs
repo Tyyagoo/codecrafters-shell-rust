@@ -27,6 +27,7 @@ static BUILTINS: &[(&str, Executor)] = &[
         println!("{}", args.join(" "));
     }),
     ("exit", |_name, _args, _path| {
+        // TODO: use exit status
         std::process::exit(0);
     }),
     ("pwd", |_name, _args, _path| {
@@ -89,6 +90,7 @@ fn find_executable(path: &str, name: &str) -> Option<String> {
                 }
             }
 
+            // TODO: verify executable flag.
             if file_type.is_file() && entry.file_name() == name {
                 return entry.path().to_str().map(|s| s.to_string());
             }
