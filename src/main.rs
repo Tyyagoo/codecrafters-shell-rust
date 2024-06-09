@@ -12,7 +12,9 @@ fn main() {
 
         stdin.read_line(&mut input).unwrap();
         match input.trim() {
-            "cd" => {} // avoid clippy warning
+            "exit 0" => {
+                break;
+            }
 
             cmd => {
                 println!("{}: command not found", cmd);
