@@ -7,14 +7,17 @@ type Executor = fn(name: &str, args: Vec<&str>, path: &str) -> ();
 static BUILTINS: &[(&str, Executor)] = &[
     ("cd", |_name, args, _path| {
         match args.first() {
-            Some(dest) => match fs::canonicalize(dest) {
-                Ok(buf) => {
-                    env::set_current_dir(buf).unwrap();
+            Some(dest) => {
+                let home = env::var("HOME").unwrap();
+                match fs::canonicalize(dest.replace('~', home.as_str())) {
+                    Ok(buf) => {
+                        env::set_current_dir(buf).unwrap();
+                    }
+                    Err(_) => {
+                        println!("cd: {}: No such file or directory", dest);
+                    }
                 }
-                Err(_) => {
-                    println!("cd: {}: No such file or directory", dest);
-                }
-            },
+            }
             None => {
                 println!("USAGE: cd <DIR>");
             }
