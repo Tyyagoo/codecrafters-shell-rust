@@ -11,13 +11,20 @@ fn main() {
         io::stdout().flush().unwrap();
 
         stdin.read_line(&mut input).unwrap();
-        match input.trim() {
-            "exit 0" => {
+        let mut command = input.split_whitespace();
+
+        match command.next() {
+            Some("exit") => {
                 break;
             }
 
+            Some("echo") => {
+                let args: Vec<&str> = command.collect();
+                println!("{}", args.join(" "));
+            }
+
             cmd => {
-                println!("{}: command not found", cmd);
+                println!("{}: command not found", cmd.unwrap_or(""));
             }
         }
 
