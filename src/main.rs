@@ -6,22 +6,19 @@ use std::io::{self, Write};
 type Executor = fn(name: &str, args: Vec<&str>, path: &str) -> ();
 static BUILTINS: &[(&str, Executor)] = &[
     ("cd", |_name, args, _path| {
-        match args.first() {
-            Some(dest) => {
-                let home = env::var("HOME").unwrap();
-                match fs::canonicalize(dest.replace('~', home.as_str())) {
-                    Ok(buf) => {
-                        env::set_current_dir(buf).unwrap();
-                    }
-                    Err(_) => {
-                        println!("cd: {}: No such file or directory", dest);
-                    }
-                }
-            }
+        let dest = match args.first() {
+            Some(d) => d,
             None => {
                 println!("USAGE: cd <DIR>");
+                return;
             }
         };
+
+        let home = env::var("HOME").unwrap();
+        match fs::canonicalize(dest.replace('~', home.as_str())) {
+            Ok(buf) => env::set_current_dir(buf).unwrap(),
+            Err(_) => println!("cd: {}: No such file or directory", dest),
+        }
     }),
     ("echo", |_name, args, _path| {
         println!("{}", args.join(" "));
