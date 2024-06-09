@@ -11,6 +11,10 @@ static BUILTINS: &[(&str, Executor)] = &[
     ("exit", |_name, _args, _path| {
         std::process::exit(0);
     }),
+    ("pwd", |_name, _args, _path| {
+        let path = env::current_dir().unwrap();
+        println!("{}", path.into_os_string().into_string().unwrap());
+    }),
     ("type", |_name, args, path| {
         let key = match args.first() {
             Some(k) => k,
