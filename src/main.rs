@@ -5,6 +5,21 @@ use std::io::{self, Write};
 
 type Executor = fn(name: &str, args: Vec<&str>, path: &str) -> ();
 static BUILTINS: &[(&str, Executor)] = &[
+    ("cd", |_name, args, _path| {
+        match args.first() {
+            Some(dest) => match fs::canonicalize(dest) {
+                Ok(buf) => {
+                    env::set_current_dir(buf).unwrap();
+                }
+                Err(_) => {
+                    println!("cd: {}: No such file or directory", dest);
+                }
+            },
+            None => {
+                println!("USAGE: cd <DIR>");
+            }
+        };
+    }),
     ("echo", |_name, args, _path| {
         println!("{}", args.join(" "));
     }),
