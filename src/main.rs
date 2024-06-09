@@ -3,15 +3,15 @@ use std::fs;
 #[allow(unused_imports)]
 use std::io::{self, Write};
 
-type Executor = fn(name: &str, args: Vec<&str>) -> ();
+type Executor = fn(name: &str, args: Vec<&str>, path: &str) -> ();
 static BUILTINS: &[(&str, Executor)] = &[
-    ("echo", |_name, args| {
+    ("echo", |_name, args, _path| {
         println!("{}", args.join(" "));
     }),
-    ("exit", |_name, _args| {
+    ("exit", |_name, _args, _path| {
         std::process::exit(0);
     }),
-    ("type", |_name, args| {
+    ("type", |_name, args, path| {
         let key = match args.first() {
             Some(k) => k,
             None => {
@@ -22,36 +22,43 @@ static BUILTINS: &[(&str, Executor)] = &[
 
         match find_builtin(key) {
             Ok(idx) => println!("{} is a shell builtin", BUILTINS[idx].0),
-            Err(_) => {
-                let path = args.last().unwrap();
-                match find_executable(path, key) {
-                    Ok(exe) => println!("{} is {}", key, exe),
-                    Err(err) => println!("{}", err),
-                }
-            }
+            Err(_) => match find_executable(path, key) {
+                Some(exe) => println!("{} is {}", key, exe),
+                None => println!("{} not found", key),
+            },
         }
     }),
 ];
 
-static NOT_FOUND: Executor = |name, _args| {
-    println!("{}: command not found", name);
+static NOT_BUILTIN: Executor = |name, args, path| match find_executable(path, name) {
+    Some(exe) => {
+        let out = std::process::Command::new(exe)
+            .args(args)
+            .output()
+            .expect("Failed to start process");
+
+        print!("{}", String::from_utf8(out.stdout).unwrap());
+        io::stdout().flush().unwrap();
+    }
+
+    None => println!("{}: command not found", name),
 };
 
 fn find_builtin(key: &str) -> Result<usize, usize> {
     BUILTINS.binary_search_by(|(k, _)| k.cmp(&key))
 }
 
-fn find_executable(path: &str, name: &str) -> io::Result<String> {
+fn find_executable(path: &str, name: &str) -> Option<String> {
     for dir in path.split(':') {
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.flatten() {
                 if let Ok(file_type) = entry.file_type() {
                     if file_type.is_dir() {
                         match find_executable(entry.path().to_str().unwrap(), name) {
-                            Ok(exe) => {
-                                return Ok(exe);
+                            Some(exe) => {
+                                return Some(exe);
                             }
-                            Err(_) => {
+                            None => {
                                 continue;
                             }
                         }
@@ -59,16 +66,14 @@ fn find_executable(path: &str, name: &str) -> io::Result<String> {
 
                     if file_type.is_file() && entry.file_name() == name {
                         let exe = entry.path().into_os_string().into_string().unwrap();
-                        return Ok(exe);
+                        return Some(exe);
                     }
                 }
             }
         }
     }
-    io::Result::Err(io::Error::new(
-        io::ErrorKind::NotFound,
-        format!("{} not found", name),
-    ))
+
+    None
 }
 
 fn main() {
@@ -85,13 +90,9 @@ fn main() {
         stdin.read_line(&mut input).unwrap();
         let mut split = input.split_whitespace();
         let cmd = split.next().unwrap_or("");
-        let mut args: Vec<&str> = split.collect();
+        let args: Vec<&str> = split.collect();
 
-        if cmd == "type" {
-            args.push(path.as_str());
-        }
-
-        find_builtin(cmd).map_or(NOT_FOUND, |idx| BUILTINS[idx].1)(cmd, args);
+        find_builtin(cmd).map_or(NOT_BUILTIN, |idx| BUILTINS[idx].1)(cmd, args, path.as_str());
 
         input.clear();
     }
