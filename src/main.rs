@@ -3,7 +3,11 @@ use std::fs;
 #[allow(unused_imports)]
 use std::io::{self, Write};
 
-type Executor = fn(name: &str, args: Vec<&str>, path: &str) -> ();
+mod parser;
+#[allow(unused_imports)]
+use parser::parse;
+
+type Executor = fn(name: &str, args: Vec<String>, path: &str) -> ();
 static BUILTINS: &[(&str, Executor)] = &[
     ("cd", |_name, args, _path| {
         let dest = match args.first() {
@@ -109,11 +113,12 @@ fn main() {
         io::stdout().flush().unwrap();
 
         stdin.read_line(&mut input).unwrap();
-        let mut split = input.split_whitespace();
-        let cmd = split.next().unwrap_or("");
-        let args: Vec<&str> = split.collect();
+        let (cmd, args) = parse(&input);
 
-        find_builtin(cmd).map_or(NOT_BUILTIN, |idx| BUILTINS[idx].1)(cmd, args, path.as_str());
+        let fun = find_builtin(cmd.as_str())
+            .map_or(NOT_BUILTIN, |idx| BUILTINS[idx].1);
+        
+        fun(cmd.as_str(), args, path.as_str());
 
         input.clear();
     }
