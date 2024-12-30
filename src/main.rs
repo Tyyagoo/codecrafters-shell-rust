@@ -2,7 +2,6 @@ use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::{self, Write};
-use std::process::Stdio;
 
 mod parser;
 use parser::parse;
@@ -26,10 +25,18 @@ static BUILTINS: &[(&str, Executor)] = &[
     }),
     ("echo", |_name, args, _path| {
         match args.iter().enumerate().find(|(_, s)| s.contains('>')) {
-            Some((idx, _target)) => {
+            Some((idx, target)) => {
                 let (cmd_args, pipe_to) = args.split_at(idx);
                 let mut file = File::create(pipe_to[1].to_owned()).unwrap();
-                file.write_all(format!("{}\n", cmd_args.join(" ")).as_bytes()).unwrap();
+                let args_str = format!("{}\n", cmd_args.join(" "));
+
+                match target.chars().nth(0) {
+                    Some('1') | Some('>') => file.write_all(args_str.as_bytes()).unwrap(),
+                    Some('2') => print!("{}", args_str),
+                    _ => panic!(),
+                }
+
+                io::stdout().flush().unwrap();
             }
 
             None => println!("{}", args.join(" ")),
@@ -64,26 +71,43 @@ static BUILTINS: &[(&str, Executor)] = &[
 
 static NOT_BUILTIN: Executor = |name, args, path| match find_executable(path, name) {
     Some(exe) => match args.iter().enumerate().find(|(_, s)| s.contains('>')) {
-        Some((idx, _target)) => {
+        Some((idx, target)) => {
             let (cmd_args, pipe_to) = args.split_at(idx);
 
             let out = std::process::Command::new(exe)
                 .args(cmd_args)
-                .stderr(Stdio::piped())
                 .output()
                 .expect("Failed to start process");
 
             let mut file = File::create(pipe_to[1].to_owned()).unwrap();
-            file.write_all(out.stdout.as_ref()).unwrap();
 
-            let error = String::from_utf8(out.stderr).unwrap();
+            match target.chars().nth(0) {
+                Some('1') | Some('>') => {
+                    file.write_all(out.stdout.as_ref()).unwrap();
 
-            // Huh?
-            match error.strip_prefix("/bin/") {
-                Some(e) => print!("{}", e),
-                None => print!("{}", error)
+                    // Huh?
+                    let error = String::from_utf8(out.stderr).unwrap();
+                    match error.strip_prefix("/bin/") {
+                        Some(e) => print!("{}", e),
+                        None => print!("{}", error),
+                    }
+                }
+
+                Some('2') => {
+                    print!("{}", String::from_utf8(out.stdout).unwrap());
+
+                    // Huh?
+                    let error = String::from_utf8(out.stderr).unwrap();
+                    match error.strip_prefix("/bin/") {
+                        Some(e) => file.write_all(e.as_bytes()).unwrap(),
+                        None => file.write_all(error.as_bytes()).unwrap(),
+                    }
+                }
+
+                _ => panic!("Invalid pipe."),
             }
 
+            io::stdout().flush().unwrap();
             io::stderr().flush().unwrap();
         }
 
