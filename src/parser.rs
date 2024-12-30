@@ -41,18 +41,39 @@ impl Scanner {
 
     pub fn unquote(&mut self, what: char) -> String {
         let mut chars = Vec::new();
-        while !self.take(what) {
-            match self.pop() {
-                // Some(ch) if *ch == '\\' => {
-                //     match self.pop() {
-                //         Some(escaped) => chars.push(*escaped),
-                //         None => break,
-                //     }
-                // }
-                Some(ch) => chars.push(*ch),
-                None => panic!("exhausted early."),
+
+        while let Some(current) = self.pop() {
+            let ch = *current;
+
+            if ch == '\n' {
+                break;
             }
+
+            if ch == what {
+                match self.peek() {
+                    Some(' ') => break,
+                    None => break,
+                    _ => continue,
+                }
+            }
+
+            if ch == '\\' && what == '"' {
+                match self.peek() {
+                    Some(esc) if *esc == '\\' || *esc == '$' || *esc == '"' || *esc == '\n' => {
+                        chars.push(*esc);
+                        self.cursor += 1;
+                        continue;
+                    }
+
+                    Some(_) => {},
+                    None => break,
+                }
+            }
+
+            chars.push(ch);
+
         }
+
         chars.into_iter().collect()
     }
 

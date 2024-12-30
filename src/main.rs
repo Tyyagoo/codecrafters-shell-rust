@@ -56,6 +56,8 @@ static BUILTINS: &[(&str, Executor)] = &[
 
 static NOT_BUILTIN: Executor = |name, args, path| match find_executable(path, name) {
     Some(exe) => {
+        // let quoted_args: Vec<String> = args.into_iter().map(|s| format!("\"{}\"", s)).collect();
+        // println!("{:?}", args);
         let out = std::process::Command::new(exe)
             .args(args)
             .output()
