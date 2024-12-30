@@ -1,6 +1,5 @@
 use std::env;
-use std::fs;
-use std::fs::File;
+use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 
 mod parser;
@@ -27,12 +26,23 @@ static BUILTINS: &[(&str, Executor)] = &[
         match args.iter().enumerate().find(|(_, s)| s.contains('>')) {
             Some((idx, target)) => {
                 let (cmd_args, pipe_to) = args.split_at(idx);
-                let mut file = File::create(pipe_to[1].to_owned()).unwrap();
-                let args_str = format!("{}\n", cmd_args.join(" "));
+                let args_str = format!("{}", cmd_args.join(" "));
 
-                match target.chars().nth(0) {
-                    Some('1') | Some('>') => file.write_all(args_str.as_bytes()).unwrap(),
-                    Some('2') => print!("{}", args_str),
+                let append = match target.as_str() {
+                    ">>" | "1>>" | "2>>" => true,
+                    _ => false,
+                };
+
+                let mut file = OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .append(append)
+                    .open(pipe_to[1].to_owned())
+                    .unwrap();
+
+                match target.as_str() {
+                    ">" | "1>" | ">>" | "1>>" => writeln!(file, "{}", args_str).unwrap(),
+                    "2>" | "2>>" => println!("{}", args_str),
                     _ => panic!(),
                 }
 
@@ -79,7 +89,17 @@ static NOT_BUILTIN: Executor = |name, args, path| match find_executable(path, na
                 .output()
                 .expect("Failed to start process");
 
-            let mut file = File::create(pipe_to[1].to_owned()).unwrap();
+            let append = match target.as_str() {
+                ">>" | "1>>" | "2>>" => true,
+                _ => false,
+            };
+
+            let mut file = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .append(append)
+                .open(pipe_to[1].to_owned())
+                .unwrap();
 
             match target.chars().nth(0) {
                 Some('1') | Some('>') => {
