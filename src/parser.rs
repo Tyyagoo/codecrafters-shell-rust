@@ -43,6 +43,12 @@ impl Scanner {
         let mut chars = Vec::new();
         while !self.take(what) {
             match self.pop() {
+                // Some(ch) if *ch == '\\' => {
+                //     match self.pop() {
+                //         Some(escaped) => chars.push(*escaped),
+                //         None => break,
+                //     }
+                // }
                 Some(ch) => chars.push(*ch),
                 None => panic!("exhausted early."),
             }
@@ -54,6 +60,12 @@ impl Scanner {
         let mut chars = Vec::new();
         while !self.take(what) {
             match self.pop() {
+                Some(ch) if *ch == '\\' => {
+                    match self.pop() {
+                        Some(escaped) => chars.push(*escaped),
+                        None => break,
+                    }
+                }
                 Some(ch) => chars.push(*ch),
                 None => break,
             }
