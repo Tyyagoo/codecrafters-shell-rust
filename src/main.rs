@@ -1,10 +1,10 @@
 use std::env;
 use std::fs;
-#[allow(unused_imports)]
+use std::fs::File;
 use std::io::{self, Write};
+use std::process::Stdio;
 
 mod parser;
-#[allow(unused_imports)]
 use parser::parse;
 
 type Executor = fn(name: &str, args: Vec<String>, path: &str) -> ();
@@ -25,7 +25,15 @@ static BUILTINS: &[(&str, Executor)] = &[
         }
     }),
     ("echo", |_name, args, _path| {
-        println!("{}", args.join(" "));
+        match args.iter().enumerate().find(|(_, s)| s.contains('>')) {
+            Some((idx, _target)) => {
+                let (cmd_args, pipe_to) = args.split_at(idx);
+                let mut file = File::create(pipe_to[1].to_owned()).unwrap();
+                file.write_all(format!("{}\n", cmd_args.join(" ")).as_bytes()).unwrap();
+            }
+
+            None => println!("{}", args.join(" ")),
+        }
     }),
     ("exit", |_name, _args, _path| {
         // TODO: use exit status
@@ -55,17 +63,40 @@ static BUILTINS: &[(&str, Executor)] = &[
 ];
 
 static NOT_BUILTIN: Executor = |name, args, path| match find_executable(path, name) {
-    Some(exe) => {
-        // let quoted_args: Vec<String> = args.into_iter().map(|s| format!("\"{}\"", s)).collect();
-        // println!("{:?}", args);
-        let out = std::process::Command::new(exe)
-            .args(args)
-            .output()
-            .expect("Failed to start process");
+    Some(exe) => match args.iter().enumerate().find(|(_, s)| s.contains('>')) {
+        Some((idx, _target)) => {
+            let (cmd_args, pipe_to) = args.split_at(idx);
 
-        print!("{}", String::from_utf8(out.stdout).unwrap());
-        io::stdout().flush().unwrap();
-    }
+            let out = std::process::Command::new(exe)
+                .args(cmd_args)
+                .stderr(Stdio::piped())
+                .output()
+                .expect("Failed to start process");
+
+            let mut file = File::create(pipe_to[1].to_owned()).unwrap();
+            file.write_all(out.stdout.as_ref()).unwrap();
+
+            let error = String::from_utf8(out.stderr).unwrap();
+
+            // Huh?
+            match error.strip_prefix("/bin/") {
+                Some(e) => print!("{}", e),
+                None => print!("{}", error)
+            }
+
+            io::stderr().flush().unwrap();
+        }
+
+        None => {
+            let out = std::process::Command::new(exe)
+                .args(args)
+                .output()
+                .expect("Failed to start process");
+
+            print!("{}", String::from_utf8(out.stdout).unwrap());
+            io::stdout().flush().unwrap();
+        }
+    },
 
     None => println!("{}: command not found", name),
 };
@@ -117,9 +148,8 @@ fn main() {
         stdin.read_line(&mut input).unwrap();
         let (cmd, args) = parse(&input);
 
-        let fun = find_builtin(cmd.as_str())
-            .map_or(NOT_BUILTIN, |idx| BUILTINS[idx].1);
-        
+        let fun = find_builtin(cmd.as_str()).map_or(NOT_BUILTIN, |idx| BUILTINS[idx].1);
+
         fun(cmd.as_str(), args, path.as_str());
 
         input.clear();
